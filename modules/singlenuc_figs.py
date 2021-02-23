@@ -6,6 +6,7 @@ import seaborn as sns
 from modules.utils.LogParser import LogParser as LP
 import gc
 import pickle
+from subprocess import run
 
 
 class DataManager:
@@ -17,7 +18,7 @@ class DataManager:
         self.output_dir = self.home_dir / 'Temp' / 'SingleNuc' / 'Figures'
         self.cache_file = self.home_dir / 'Temp' / 'SingleNuc' / 'cache.pkl'
         self.trial_df = self.load_trials_df()
-        self.project_managers = self.initiate_project_managers()
+        self.project_managers = None
 
     def load_trials_df(self):
         path = self.data_dir / 'trials.csv'
@@ -26,13 +27,15 @@ class DataManager:
 
     def initiate_project_managers(self):
         if self.cache_file.exists():
-            return pickle.load(open(self.cache_file, 'rb'))
+            self.project_managers = pickle.load(open(self.cache_file, 'rb'))
+            return
         project_managers = {}
         for pid in self.trial_df.project_id:
             print('loading {}'.format(pid))
             project_managers.update({pid: ProjectManager(pid)})
         pickle.dump(project_managers, open(self.cache_file, 'wb'))
-        return project_managers
+        self.project_managers = project_managers
+        return
 
     def plot_depth_change_comparison(self):
         fig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -46,6 +49,22 @@ class DataManager:
         fig.savefig(self.output_dir / 'depth_change_comparison.pdf')
         plt.close(fig)
 
+    def download_all(self):
+        for pid in self.trial_df.project_id.values:
+            print('downloading ' + pid)
+            cloud_project_dir = 'cichlidVideo:BioSci-McGrath/Apps/CichlidPiData/' + pid + '/'
+            local_project_dir = (self.data_dir/pid).as_posix()
+            if not (self.data_dir/pid/'MasterAnalysisFiles').exists():
+                (self.data_dir/pid/'MasterAnalysisFiles').mkdir(parents=True)
+            run(['rclone', 'copy',
+                 cloud_project_dir + 'MasterAnalysisFiles/smoothedDepthData.npy',
+                 local_project_dir+'/MasterAnalysisFiles/'])
+            run(['rclone', 'copy',
+                 cloud_project_dir + 'MasterAnalysisFiles/DepthCrop.txt',
+                 local_project_dir+'/MasterAnalysisFiles/'])
+            run(['rclone', 'copy',
+                 cloud_project_dir + 'Logfile.txt',
+                 local_project_dir])
 
 
 class ProjectManager:
@@ -53,7 +72,8 @@ class ProjectManager:
     def __init__(self, pid):
         self.pid = pid
         self.pixelLength = 0.1030168618
-        self.project_dir = Path('D:', 'Temp', 'SingleNuc', pid)
+        self.home_dir = Path('D:') if Path('D:').exists() else Path.home()
+        self.project_dir = self.home_dir / 'Temp' / 'SingleNuc' / pid
         self.lp = self.parse_log()
         self.trial_info = self.get_trial_info()
         self.smoothed_depth_data = self.load_smoothed_depth_data()
@@ -80,10 +100,10 @@ class ProjectManager:
             line = next(f)
             tray = line.rstrip().split(',')
             tray_crop = [int(x) for x in tray]
-        smoothed_depth_data[:, :tray_crop[0], :] = np.nan
-        smoothed_depth_data[:, tray_crop[2]:, :] = np.nan
-        smoothed_depth_data[:, :, :tray_crop[1]] = np.nan
-        smoothed_depth_data[:, :, tray_crop[3]:] = np.nan
+        smoothed_depth_data[:, :tray_crop[0] + 15, :] = np.nan
+        smoothed_depth_data[:, tray_crop[2] - 15:, :] = np.nan
+        smoothed_depth_data[:, :, :tray_crop[1] + 15] = np.nan
+        smoothed_depth_data[:, :, tray_crop[3] - 15:] = np.nan
 
         t1 = self.trial_info.dissection_time.values[0] - np.timedelta64(10, 'm')
         t0 = t1 - np.timedelta64(2, 'h')
