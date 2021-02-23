@@ -95,9 +95,10 @@ class ProjectManager:
         return trimmed_depth_data
 
     def calc_volume_changes(self):
-        abs_depth_change_per_pixel = np.abs(self.smoothed_depth_data - self.smoothed_depth_data[0])
+        abs_depth_change_per_pixel = np.abs(np.diff(self.smoothed_depth_data, axis=0))
         abs_depth_change_per_frame = np.nansum(abs_depth_change_per_pixel, axis=(1, 2))
         abs_volume_change_per_frame = abs_depth_change_per_frame * self.pixelLength ** 2
+        abs_volume_change_per_frame = np.insert(abs_volume_change_per_frame, 0, 0)
         return abs_volume_change_per_frame
 
 
