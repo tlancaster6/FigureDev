@@ -7,13 +7,14 @@ from modules.utils.LogParser import LogParser as LP
 import gc
 import pickle
 from subprocess import run
+from skimage import morphology
 
 
 class DataManager:
 
-    def __init__(self):
+    def __init__(self, use_cache=True):
+        self.use_cache = use_cache
         self.home_dir = Path('D:') if Path('D:').exists() else Path.home()
-
         self.data_dir = self.home_dir / 'Temp' / 'SingleNuc'
         self.output_dir = self.home_dir / 'Temp' / 'SingleNuc' / 'Figures'
         self.cache_file = self.home_dir / 'Temp' / 'SingleNuc' / 'cache.pkl'
@@ -26,7 +27,7 @@ class DataManager:
         return df
 
     def initiate_project_managers(self):
-        if self.cache_file.exists():
+        if self.use_cache and self.cache_file.exists():
             self.project_managers = pickle.load(open(self.cache_file, 'rb'))
             return
         project_managers = {}
@@ -100,10 +101,10 @@ class ProjectManager:
             line = next(f)
             tray = line.rstrip().split(',')
             tray_crop = [int(x) for x in tray]
-        smoothed_depth_data[:, :tray_crop[0] + 15, :] = np.nan
-        smoothed_depth_data[:, tray_crop[2] - 15:, :] = np.nan
-        smoothed_depth_data[:, :, :tray_crop[1] + 15] = np.nan
-        smoothed_depth_data[:, :, tray_crop[3] - 15:] = np.nan
+        smoothed_depth_data[:, :tray_crop[0] + 10, :] = np.nan
+        smoothed_depth_data[:, tray_crop[2] - 10:, :] = np.nan
+        smoothed_depth_data[:, :, :tray_crop[1] + 10] = np.nan
+        smoothed_depth_data[:, :, tray_crop[3] - 10:] = np.nan
 
         t1 = self.trial_info.dissection_time.values[0] - np.timedelta64(10, 'm')
         t0 = t1 - np.timedelta64(2, 'h')
@@ -114,11 +115,13 @@ class ProjectManager:
         gc.collect()
         return trimmed_depth_data
 
-    def calc_volume_changes(self):
-        abs_depth_change_per_pixel = np.abs(np.diff(self.smoothed_depth_data, axis=0))
-        abs_depth_change_per_frame = np.nansum(abs_depth_change_per_pixel, axis=(1, 2))
-        abs_volume_change_per_frame = abs_depth_change_per_frame * self.pixelLength ** 2
-        abs_volume_change_per_frame = np.insert(abs_volume_change_per_frame, 0, 0)
-        return abs_volume_change_per_frame
+    def calc_volume_changes(self, threshold=0.1, min_pixels=1000):
+        changes = np.abs(self.smoothed_depth_data - self.smoothed_depth_data[0])
+        mask = np.where(changes[-1] >= threshold, True, False)
+        mask = morphology.remove_small_objects(mask, min_pixels)
+        changes = changes*mask
+        changes = np.nansum(changes, axis=(1, 2))
+        changes = changes * (self.pixelLength ** 2)
+        return changes
 
 
