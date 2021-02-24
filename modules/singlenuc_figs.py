@@ -45,7 +45,7 @@ class DataManager:
                 ax.plot(pm.times, pm.abs_volume_changes, 'r')
             elif pm.trial_info.type.values[0] == 'C':
                 ax.plot(pm.times, pm.abs_volume_changes, 'b')
-        ax.set(xlabel='time before euthanization, minutes', ylabel='cumulative absolute volume change (cm^3)')
+        ax.set(xlabel='time before euthanization, minutes', ylabel='cumulative absolute in-bower volume change (cm^3)')
         fig.tight_layout()
         fig.savefig(self.output_dir / 'depth_change_comparison.pdf')
         plt.close(fig)
@@ -67,6 +67,10 @@ class DataManager:
                  cloud_project_dir + 'Logfile.txt',
                  local_project_dir])
 
+    def re_calc_volume_changes(self, *kwargs):
+        for pid, pm in self.project_managers.items():
+            pm.calc_volume_changes(*kwargs)
+
 
 class ProjectManager:
 
@@ -77,6 +81,7 @@ class ProjectManager:
         self.project_dir = self.home_dir / 'Temp' / 'SingleNuc' / pid
         self.lp = self.parse_log()
         self.trial_info = self.get_trial_info()
+        self.tray_crop = self.load_tray_crop()
         self.smoothed_depth_data = self.load_smoothed_depth_data()
         self.abs_volume_changes = self.calc_volume_changes()
         self.times = -5 * np.arange(0, self.abs_volume_changes.size)[::-1]
@@ -91,20 +96,18 @@ class ProjectManager:
         df = pd.read_csv(path, parse_dates=['dissection_time'], infer_datetime_format=True)
         return df.query('project_id == "{}"'.format(self.pid))
 
-    def load_smoothed_depth_data(self):
-        path = self.project_dir / 'MasterAnalysisFiles' / 'SmoothedDepthData.npy'
-        gc.collect()
-        smoothed_depth_data = np.load(path)
-
+    def load_tray_crop(self):
         path = self.project_dir / 'MasterAnalysisFiles' / 'DepthCrop.txt'
         with open(path) as f:
             line = next(f)
             tray = line.rstrip().split(',')
             tray_crop = [int(x) for x in tray]
-        smoothed_depth_data[:, :tray_crop[0] + 10, :] = np.nan
-        smoothed_depth_data[:, tray_crop[2] - 10:, :] = np.nan
-        smoothed_depth_data[:, :, :tray_crop[1] + 10] = np.nan
-        smoothed_depth_data[:, :, tray_crop[3] - 10:] = np.nan
+        return tray_crop
+
+    def load_smoothed_depth_data(self):
+        path = self.project_dir / 'MasterAnalysisFiles' / 'SmoothedDepthData.npy'
+        gc.collect()
+        smoothed_depth_data = np.load(path)
 
         t1 = self.trial_info.dissection_time.values[0] - np.timedelta64(10, 'm')
         t0 = t1 - np.timedelta64(2, 'h')
@@ -115,11 +118,16 @@ class ProjectManager:
         gc.collect()
         return trimmed_depth_data
 
-    def calc_volume_changes(self, threshold=0.1, min_pixels=1000):
-        changes = np.abs(self.smoothed_depth_data - self.smoothed_depth_data[0])
-        mask = np.where(changes[-1] >= threshold, True, False)
-        mask = morphology.remove_small_objects(mask, min_pixels)
-        changes = changes*mask
+    def calc_volume_changes(self, threshold=0.2, min_pixels=1000, trim_width=0):
+        smd = self.smoothed_depth_data[:, self.tray_crop[0] + trim_width:self.tray_crop[2] - trim_width,
+              self.tray_crop[1] + trim_width:self.tray_crop[3] - trim_width]
+        changes = smd - smd[0]
+        castle_mask = np.where(changes[-1] >= threshold, True, False)
+        castle_mask = morphology.remove_small_objects(castle_mask, min_pixels)
+        pit_mask = np.where(changes[-1] <= -threshold, True, False)
+        pit_mask = morphology.remove_small_objects(pit_mask, min_pixels)
+        total_mask = castle_mask + pit_mask
+        changes = np.abs(changes*total_mask)
         changes = np.nansum(changes, axis=(1, 2))
         changes = changes * (self.pixelLength ** 2)
         return changes
