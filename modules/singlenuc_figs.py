@@ -69,7 +69,7 @@ class DataManager:
 
     def re_calc_volume_changes(self, *kwargs):
         for pid, pm in self.project_managers.items():
-            pm.calc_volume_changes(*kwargs)
+            pm.abs_volume_changes = pm.calc_volume_changes(*kwargs)
 
 
 class ProjectManager:
@@ -111,8 +111,8 @@ class ProjectManager:
 
         t1 = self.trial_info.dissection_time.values[0] - np.timedelta64(10, 'm')
         t0 = t1 - np.timedelta64(2, 'h')
-        first_index = max([False if np.datetime64(x.time) <= t0 else True for x in self.lp.frames].index(True) - 1, 0)
-        last_index = max([False if np.datetime64(x.time) <= t1 else True for x in self.lp.frames].index(True) - 1, 0)
+        first_index = max([False if np.datetime64(x.time) <= t0 else True for x in self.lp.frames].index(True) - 2, 0)
+        last_index = max([False if np.datetime64(x.time) <= t1 else True for x in self.lp.frames].index(True) - 2, 0)
         trimmed_depth_data = smoothed_depth_data[first_index: last_index + 1]
         del smoothed_depth_data
         gc.collect()
