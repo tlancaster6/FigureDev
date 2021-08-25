@@ -145,7 +145,7 @@ class ProjectManager:
             tray_crop = [int(x) for x in tray]
         return tray_crop
 
-    def load_smoothed_depth_data(self):
+    def load_smoothed_depth_data(self, time_frame=np.timedelta64(90, 'm'), end_clip=np.timedelta64(10, 'm')):
         path = self.project_dir / 'MasterAnalysisFiles' / 'smoothedDepthData.npy'
         gc.collect()
         smoothed_depth_data = np.load(path)
