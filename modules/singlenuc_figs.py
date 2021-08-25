@@ -53,7 +53,7 @@ class DataManager:
     def download_all(self):
         for pid in self.trial_df.project_id.values:
             print('downloading ' + pid)
-            cloud_project_dir = 'cichlidVideo:BioSci-McGrath/Apps/CichlidPiData/' + pid + '/'
+            cloud_project_dir = 'cichlidVideo:BioSci-McGrath/Apps/CichlidPiData/__ProjectData/' + pid + '/'
             local_project_dir = (self.data_dir/pid).as_posix()
             if not (self.data_dir/pid/'MasterAnalysisFiles').exists():
                 (self.data_dir/pid/'MasterAnalysisFiles').mkdir(parents=True)
@@ -105,7 +105,7 @@ class ProjectManager:
         return tray_crop
 
     def load_smoothed_depth_data(self):
-        path = self.project_dir / 'MasterAnalysisFiles' / 'SmoothedDepthData.npy'
+        path = self.project_dir / 'MasterAnalysisFiles' / 'smoothedDepthData.npy'
         gc.collect()
         smoothed_depth_data = np.load(path)
 
