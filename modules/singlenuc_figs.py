@@ -94,9 +94,9 @@ class DataManager:
             run(['rclone', 'copy',
                  cloud_project_dir + 'MasterAnalysisFiles/smoothedDepthData.npy',
                  local_project_dir+'/MasterAnalysisFiles/'])
-            run(['rclone', 'copy',
-                 cloud_project_dir + 'Troubleshooting/interpDepthData.npy',
-                 local_project_dir+'/Troubleshooting/'])
+            # run(['rclone', 'copy',
+            #      cloud_project_dir + 'Troubleshooting/interpDepthData.npy',
+            #      local_project_dir+'/Troubleshooting/'])
             run(['rclone', 'copy',
                  cloud_project_dir + 'MasterAnalysisFiles/DepthCrop.txt',
                  local_project_dir+'/MasterAnalysisFiles/'])
